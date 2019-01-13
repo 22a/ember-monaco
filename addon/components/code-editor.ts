@@ -1,88 +1,73 @@
 import Component from '@ember/component';
-import Penpal, { IChildConnectionObject } from 'penpal';
+import Penpal from 'penpal';
 
-export interface CodeEditorKeyCommand {
-  cmd?: boolean;
-  shift?: boolean;
-  alt?: boolean;
-  keys: string[];
-}
+// I've killed all type information and replaced:
+// this.x = 'foo' with this.set('x', 'foo')
+// and
+// let foo = this.x with let foo = this.get('x')
+// because my props weren't being set correctly w/o this
+//
+// sorry to do this to your nice code
 
-export default class CodeEditor extends Component {
-  public code?: string;
-  public _lastCode?: string = this.code;
-  public language?: string;
-  public _conn!: IChildConnectionObject<any>;
-  public theme: 'vs-dark' | 'vs-light' = 'vs-dark'; // TODO: proper default value
-  public onChange?: (v: string) => any;
-  public onKeyCommand?: (evt: CodeEditorKeyCommand) => any;
+export default Component.extend({
+  classNames: ['monaco-editor'],
 
-  public buildEditorOptions(): object {
-    const { code, language, theme } = this;
+  _conn: null,
+  theme: 'vs-dark',
+  onKeyCommand() {},
+
+  buildEditorOptions() {
+    let code = this.get('code')
+    let language = this.get('language')
+    let theme = this.get('theme')
     return { value: code, language, theme };
-  }
+  },
 
-  public _onKeyCommand(evt: CodeEditorKeyCommand) {
-    this.onKeyCommand && this.onKeyCommand(evt);
-  }
-  public onEditorTextChanged({ value }: { value: string; event: any }) {
-    if (value === this.code) {
+  _onKeyCommand(evt) {
+    this.get('onKeyCommand') && this.get('onKeyCommand')(evt);
+  },
+
+  onEditorTextChanged(value, event) {
+    if (value === this.get('code')) {
       // if our editor is already up to date
       return; // no change
     }
-    this.code = this._lastCode = value;
-    if (this.onChange) {
-      this.onChange(value);
+    this.set('code', value);
+    if (this.get('onChange')) {
+      this.get('onChange')(value);
     }
-  }
+  },
 
-  public didInsertElement() {
-    super.didInsertElement();
-    const container = this.element.querySelector<HTMLDivElement>(
+  didInsertElement() {
+    this._super(...arguments);
+    let container = this.get('element').querySelector(
       '.frame-container'
     );
     if (!container) {
       throw new Error('No frame container found');
     }
-    this._conn = Penpal.connectToChild({
+    this.set('_conn', Penpal.connectToChild({
       appendTo: container,
       methods: {
-        onValueChanged: this.onEditorTextChanged.bind(this),
-        keyCommand: this._onKeyCommand.bind(this)
+        onValueChanged: this.get('onEditorTextChanged').bind(this),
+        keyCommand: this.get('_onKeyCommand').bind(this)
       },
       url: '/ember-monaco/frame.html'
-    });
-    this._conn.promise.then(frameApi => {
-      const { code, theme, language } = this;
+    }));
+    this.get('_conn').promise.then(frameApi => {
+      let code = this.get('code')
+      let language = this.get('language')
+      let theme = this.get('theme')
       frameApi.setupEditor({
         language,
         theme,
         value: code
       });
     });
-  }
+  },
 
-  public didUpdateAttrs() {
-    if (this.code !== this._lastCode) {
-      this.updateFrame();
-    }
-    this._lastCode = this.code;
-  }
-
-  public updateFrame() {
-    this._conn.promise.then(frameApi => {
-      const { code, language } = this;
-      frameApi.updateEditor({
-        language,
-        value: code
-      });
-    });
-  }
-
-  public willDestroyElement() {
-    super.willDestroyElement();
-    this._conn.destroy();
-  }
-}
-
-CodeEditor.prototype.classNames = ['monaco-editor'];
+  willDestroyElement() {
+    this._super(...arguments)
+    this.get('_conn').destroy();
+  },
+})

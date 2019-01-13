@@ -11,6 +11,12 @@
 ember install ember-monaco
 ```
 
+My app's broccoli had some issues with cjs transforms when I imported this
+addon, running this seemed to remedy it:
+```
+yarn add --dev ember-cli-cjs-transform
+```
+
 ## Usage
 
 ###### controllers/application.ts
